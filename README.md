@@ -1,6 +1,7 @@
-# Device Test — Appium Android UI 자동화
+# Device Test — Appium Android UI 자동화 + AI/MCP
 
-Android 앱을 대상으로 UI 요소를 자동 수집하고, 시나리오 기반 테스트를 실행하며, 결과를 웹 대시보드로 실시간 모니터링하는 자동화 프레임워크입니다.
+Android 앱을 대상으로 UI 요소를 자동 수집하고, 시나리오 기반 테스트를 실행하며, 실패 시 Claude Vision AI가 자동 복구하는 자동화 프레임워크입니다.  
+Claude Code MCP를 통해 AI가 테스트 인프라를 직접 제어합니다.
 
 ---
 
@@ -22,45 +23,65 @@ Device Test
 │       └── UiAutomator2 드라이버 → 앱 조작 / XML dump
 │
 ├── 🗺  UI 맵 수집
-│   ├── app_scanner.py     앱 이름 → 패키지 탐색 → XML 수집 → ui_map 저장
+│   ├── app_scanner.py       앱 이름 → 패키지 탐색 → XML 수집 → ui_map 저장
 │   └── ui_maps/
 │       ├── com.sec.android.app.shealth.json
 │       └── com.sec.android.app.popupcalculator.json
 │
 ├── 🏃 테스트 실행
-│   ├── run_app.py         ui_map 기반 범용 시나리오 러너
-│   └── result_log.json    실행 결과 (자동 생성)
+│   ├── run_app.py           ui_map 기반 범용 시나리오 러너
+│   │                         └── 실패 시 AI 자동 분석 + 복구 재시도
+│   └── result_log.json      실행 결과 (자동 생성)
+│
+├── 🤖 AI / MCP 레이어  ← NEW
+│   ├── mcp_server.py        MCP 서버 — Claude가 직접 호출하는 16개 툴
+│   ├── ai_helper.py         Claude Vision API — 스크린샷 분석 / 좌표 탐색
+│   └── .mcp.json            Claude Code MCP 자동 연결 설정
 │
 └── 🌐 웹 대시보드
-    ├── server.py          Flask 서버 (SSE 실시간 스트림)
-    └── dashboard.html     테스트 컨트롤 + 결과 시각화
+    ├── server.py            Flask 서버 (REST API + SSE 실시간 스트림)
+    └── dashboard.html       테스트 컨트롤 + 결과 시각화
 ```
 
-### 데이터 흐름
+---
+
+## AI / MCP 연동 구조
 
 ```
-앱 이름 입력
+사용자: "삼성헬스 테스트 실행해줘"
     │
     ▼
-app_scanner.py
-  ├─ adb pm list packages → 패키지명 탐색
-  ├─ Appium XML dump (스크롤 스캔)
-  ├─ Inspector XML 병합 (inspector_dumps/)
-  └─ ui_maps/<package>.json 저장
-         │
-         ▼
-  웹 대시보드 (server.py + dashboard.html)
-  ├─ 앱 / 시나리오 선택
-  ├─ 테스트 시작 버튼 → run_app.py 실행
-  ├─ SSE 실시간 로그 스트림
-  └─ 완료 시 결과 자동 렌더
-         │
-         ▼
-  run_app.py
-  ├─ 앱 강제 종료 → 재실행 (terminate + activate)
-  ├─ 단계별 액션: launch / wait / click / scroll_click / verify_screen
-  ├─ 오류 시 스크린샷 자동 저장
-  └─ result_log.json 저장
+Claude Code (MCP Client)
+    │  .mcp.json 로 자동 연결
+    ▼
+mcp_server.py (MCP Server)
+    ├── list_apps()            → ui_maps/ 앱 목록 조회
+    ├── run_test(package)      → run_app.py 실행
+    ├── connect_device()       → Appium 세션 생성
+    ├── take_screenshot()      → 현재 화면 캡처
+    ├── get_page_source()      → XML dump 조회
+    ├── tap(x, y)              → 좌표 직접 탭
+    ├── analyze_failure_with_ai() → Claude Vision 실패 분석
+    ├── find_element_on_screen()  → 화면에서 element 좌표 탐색
+    └── update_ui_map_element()   → 복구 좌표를 ui_map에 영구 저장
+```
+
+### 테스트 실패 시 AI 자동 복구 흐름
+
+```
+element 탐색 실패
+    │
+    ├── 📸 스크린샷 저장
+    │
+    ├── 🤖 Claude Vision 호출 (claude-haiku-4-5)
+    │       ├── 현재 화면 상태 파악
+    │       ├── 실패 원인 분석
+    │       └── 복구 좌표 제안
+    │
+    ├── 🎯 AI 제안 좌표로 tap() 재시도
+    │
+    └── ✅ 복구 성공 → PASS로 자동 전환
+        (실패 시 ERROR 로그 + ai_analysis 기록)
 ```
 
 ---
@@ -70,13 +91,37 @@ app_scanner.py
 | 파일 | 역할 |
 |------|------|
 | `app_scanner.py` | 앱 이름으로 패키지 탐색 + XML 수집 + ui_map 생성 |
-| `run_app.py` | ui_map 기반 범용 시나리오 실행기 |
-| `server.py` | Flask 웹 서버 (REST API + SSE) |
-| `dashboard.html` | 테스트 대시보드 UI |
+| `run_app.py` | ui_map 기반 범용 시나리오 실행기 + AI 자동 복구 |
+| `mcp_server.py` | **MCP 서버** — Claude가 직접 호출하는 16개 툴 |
+| `ai_helper.py` | **Claude Vision API** 래퍼 — 스크린샷 분석/좌표 탐색/실패 진단 |
+| `.mcp.json` | Claude Code MCP 자동 연결 설정 |
+| `server.py` | Flask 웹 서버 (REST API + SSE 실시간 스트림) |
+| `dashboard.html` | 테스트 컨트롤 + 결과 시각화 대시보드 |
 | `ui_maps/` | 앱별 UI 맵 JSON |
 | `inspector_dumps/` | Appium Inspector 내보내기 XML |
-| `poc_learn.py` | 계산기 PoC — UI 학습 |
-| `poc_run.py` | 계산기 PoC — 시나리오 실행 |
+
+---
+
+## MCP 툴 목록 (16개)
+
+| 카테고리 | 툴 | 설명 |
+|---------|-----|------|
+| 조회 | `list_apps` | 테스트 가능한 앱 + 시나리오 목록 |
+| 조회 | `get_ui_map` | 특정 앱 ui_map 전체 조회 |
+| 조회 | `get_test_result` | 마지막 테스트 결과 |
+| 실행 | `run_test` | 시나리오 실행 + 결과 반환 |
+| Appium | `connect_device` | 기기 Appium 세션 생성 |
+| Appium | `disconnect_device` | 세션 종료 |
+| Appium | `launch_app` | 앱 강제 종료 후 재실행 |
+| Appium | `take_screenshot` | 현재 화면 캡처 |
+| Appium | `get_page_source` | 화면 XML dump |
+| Appium | `tap` | 좌표 탭 |
+| Appium | `swipe_up` | 위로 스크롤 |
+| Appium | `click_element` | resource_id/xpath/content_desc로 클릭 |
+| AI 분석 | `analyze_screenshot_with_ai` | 스크린샷 자유 질문 분석 |
+| AI 분석 | `analyze_failure_with_ai` | 실패 원인 + 복구 좌표 제안 |
+| AI 분석 | `find_element_on_screen` | 화면에서 element 좌표 탐색 |
+| ui_map | `update_ui_map_element` | element 필드 수정 (AI 복구 좌표 영구 저장) |
 
 ---
 
@@ -85,30 +130,51 @@ app_scanner.py
 ### 1. 사전 요구사항
 
 ```bash
-pip install Appium-Python-Client selenium flask
+pip install Appium-Python-Client selenium flask mcp anthropic
+
 # Appium 서버 실행
 appium
+
 # Android 단말 ADB 연결 확인
 adb devices
 ```
 
-### 2. UI 맵 수집
+### 2. 환경변수 설정
+
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."   # AI 분석 기능 활성화
+export ANDROID_HOME="/Users/<user>/Library/Android/sdk"
+```
+
+### 3. UI 맵 수집
 
 ```bash
 python app_scanner.py "삼성헬스"
 # → ui_maps/com.sec.android.app.shealth.json 생성
 ```
 
-### 3. 웹 대시보드 실행
+### 4. 웹 대시보드 실행
 
 ```bash
 python server.py
-# → http://localhost:5000 접속
+# → http://localhost:5000
 ```
 
-브라우저에서 앱 선택 → 시나리오 선택 → **테스트 시작** 클릭
+### 5. Claude Code에서 MCP로 직접 제어
 
-### 4. CLI 직접 실행
+```bash
+cd "Device test Claude"
+claude  # .mcp.json 자동 인식 → device-test MCP 연결
+```
+
+Claude에게 자연어로 지시:
+```
+"삼성헬스 테스트 실행해줘"
+"테스트 실패 원인 분석해줘"
+"혈중 산소 버튼을 화면에서 찾아서 탭해줘"
+```
+
+### 6. CLI 직접 실행
 
 ```bash
 python run_app.py com.sec.android.app.shealth all
@@ -117,7 +183,7 @@ python run_app.py com.sec.android.app.shealth blood_oxygen_tap_check
 
 ---
 
-## 지원 액션
+## 지원 액션 (시나리오 JSON)
 
 | 액션 | 설명 |
 |------|------|
@@ -137,8 +203,30 @@ python run_app.py com.sec.android.app.shealth blood_oxygen_tap_check
   "result": "PASS",
   "ai_invoked": false,
   "summary": { "total": 7, "pass": 7, "fail": 0, "error": 0 },
-  "elapsed_seconds": 18,
-  "steps": [...]
+  "elapsed_seconds": 27,
+  "steps": [
+    {
+      "seq": 5,
+      "action": "scroll_click",
+      "desc": "하단 스크롤 후 혈중 산소 카드 탭",
+      "status": "PASS",
+      "detail": "UIScrollable+tap via '혈중 산소'"
+    }
+  ]
+}
+```
+
+AI 복구 시 step에 `ai_analysis` 필드 추가:
+```json
+{
+  "status": "PASS",
+  "detail": "AI 복구 성공 — tap(540, 892)",
+  "ai_analysis": {
+    "screen_state": "홈 화면, 혈중 산소 카드 하단에 위치",
+    "failure_reason": "스크롤 위치 변경으로 bounds 불일치",
+    "recovery": "화면 중앙 하단 혈중 산소 카드 탭",
+    "coordinates": [540, 892]
+  }
 }
 ```
 
@@ -146,7 +234,7 @@ python run_app.py com.sec.android.app.shealth blood_oxygen_tap_check
 |--------|------|
 | `PASS` | 전체 시나리오 성공 |
 | `FAIL` | 화면 검증 실패 |
-| `ERROR` | element 미탐색 → 스크린샷 저장 |
+| `ERROR` | element 미탐색 (AI 복구 시도 후 기록) |
 
 ---
 
