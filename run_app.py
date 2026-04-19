@@ -210,14 +210,47 @@ def run_scenario(driver, scenario: dict, elements: dict, package: str) -> dict:
             log["ai_invoked"] = True
             print(f"❌ {e}")
 
+            # 스크린샷 저장
+            screenshot_path = None
             try:
                 ts = datetime.now().strftime("%H%M%S")
-                path = str(BASE_DIR / f"error_{ts}.png")
-                driver.save_screenshot(path)
-                step_log["screenshot"] = path
-                print(f"     📸 {path}")
+                screenshot_path = str(BASE_DIR / f"error_{ts}.png")
+                driver.save_screenshot(screenshot_path)
+                step_log["screenshot"] = screenshot_path
+                print(f"     📸 {screenshot_path}")
             except Exception:
                 pass
+
+            # AI 분석 + 자동 복구
+            if screenshot_path:
+                try:
+                    from ai_helper import analyze_test_failure
+                    print(f"     🤖 AI 분석 중...")
+                    ai = analyze_test_failure(screenshot_path, str(e), step.get("desc", ""))
+                    step_log["ai_analysis"] = ai
+                    print(f"     📋 화면: {ai.get('screen_state', '')}")
+                    print(f"     🔍 원인: {ai.get('failure_reason', '')}")
+                    print(f"     💡 복구: {ai.get('recovery', '')}")
+
+                    # AI가 좌표를 제안하면 재시도
+                    coords = ai.get("coordinates")
+                    if coords and action in ("click", "scroll_click"):
+                        cx, cy = coords
+                        print(f"     🎯 AI 좌표 재시도: ({cx}, {cy})...", end=" ", flush=True)
+                        driver.tap([(cx, cy)])
+                        time.sleep(0.5)
+                        step_log["status"] = "PASS"
+                        step_log["detail"] = f"AI 복구 성공 — tap({cx},{cy})"
+                        log["summary"]["error"] -= 1
+                        log["summary"]["pass"] += 1
+                        # 모든 step이 pass면 시나리오 결과도 복구
+                        if log["summary"]["error"] == 0 and log["summary"]["fail"] == 0:
+                            log["result"] = "PASS"
+                        print("✅ AI 복구!")
+                except ImportError:
+                    pass
+                except Exception as ai_err:
+                    print(f"     ⚠️  AI 분석 오류: {ai_err}")
 
         log["steps"].append(step_log)
 

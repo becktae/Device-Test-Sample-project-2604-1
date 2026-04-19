@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "device-test": {
+      "command": "python3",
+      "args": ["/Users/becktae/project/Device test Claude/mcp_server.py"],
+      "env": {
+        "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY}",
+        "ANDROID_HOME": "/Users/becktae/Library/Android/sdk",
+        "ANDROID_SDK_ROOT": "/Users/becktae/Library/Android/sdk"
+      }
+    }
+  }
+}
