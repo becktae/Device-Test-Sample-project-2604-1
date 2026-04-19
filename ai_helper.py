@@ -69,20 +69,32 @@ NOT_FOUND: <이유 한 줄>
     return None
 
 
-def analyze_test_failure(screenshot_path: str, error_detail: str, step_desc: str) -> dict:
+def analyze_test_failure(
+    screenshot_path: str,
+    error_detail: str,
+    step_desc: str,
+    xml_content: str = "",
+    logcat_content: str = "",
+) -> dict:
     """
-    테스트 실패 분석.
+    테스트 실패 분석 — 스크린샷 + XML dump + logcat 종합 진단.
     반환: {screen_state, failure_reason, recovery, coordinates, raw}
     """
+    extra = ""
+    if xml_content:
+        extra += f"\n\n[화면 XML 구조 (일부)]\n{xml_content[:2000]}"
+    if logcat_content:
+        extra += f"\n\n[ADB logcat (필터된 최근 로그)]\n{logcat_content[-1500:]}"
+
     question = f"""Android 앱 UI 자동화 테스트가 실패했습니다.
 
 실패 단계: {step_desc}
-에러 메시지: {error_detail}
+에러 메시지: {error_detail}{extra}
 
-이 스크린샷을 보고 아래 형식으로 분석해주세요 (각 항목 한 줄):
+스크린샷과 위 로그를 종합해서 아래 형식으로 분석해주세요 (각 항목 한 줄):
 
 SCREEN_STATE: <현재 화면 상태>
-FAILURE_REASON: <실패 원인>
+FAILURE_REASON: <실패 원인 — logcat/XML 근거 포함>
 RECOVERY: <복구 방법>
 COORDINATES: x=<숫자>, y=<숫자>
 

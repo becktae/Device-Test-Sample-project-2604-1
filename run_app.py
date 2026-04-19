@@ -9,6 +9,8 @@ run_app.py
 """
 
 import json
+import os
+import subprocess
 import sys
 import time
 import re
@@ -21,10 +23,61 @@ from appium.options.android.uiautomator2.base import UiAutomator2Options
 from appium.webdriver.common.appiumby import AppiumBy
 from selenium.common.exceptions import NoSuchElementException
 
-BASE_DIR    = Path(__file__).parent
-UI_MAP_DIR  = BASE_DIR / "ui_maps"
-LOG_PATH    = BASE_DIR / "result_log.json"
+BASE_DIR      = Path(__file__).parent
+UI_MAP_DIR    = BASE_DIR / "ui_maps"
+LOG_PATH      = BASE_DIR / "result_log.json"
 APPIUM_SERVER = "http://127.0.0.1:4723"
+ANDROID_HOME  = str(Path.home() / "Library/Android/sdk")
+ADB           = str(Path(ANDROID_HOME) / "platform-tools" / "adb")
+
+
+# ── 실패 아티팩트 수집 ────────────────────────────────
+
+def collect_failure_artifacts(driver, package: str, ts: str) -> dict:
+    """실패 시점의 스크린샷 · XML dump · logcat 수집"""
+    artifacts = {}
+    env = {**os.environ, "ANDROID_HOME": ANDROID_HOME}
+
+    # 1. 스크린샷
+    try:
+        path = str(BASE_DIR / f"error_{ts}.png")
+        driver.save_screenshot(path)
+        artifacts["screenshot"] = path
+        print(f"     📸 스크린샷: error_{ts}.png")
+    except Exception as ex:
+        print(f"     ⚠️  스크린샷 실패: {ex}")
+
+    # 2. XML dump (화면 element 구조)
+    try:
+        xml_path = str(BASE_DIR / f"error_{ts}.xml")
+        xml_content = driver.page_source
+        Path(xml_path).write_text(xml_content, encoding="utf-8")
+        artifacts["xml_dump"]    = xml_path
+        artifacts["xml_content"] = xml_content[:4000]  # AI 전달용 요약
+        print(f"     🗂  XML dump: error_{ts}.xml")
+    except Exception as ex:
+        print(f"     ⚠️  XML dump 실패: {ex}")
+
+    # 3. ADB logcat (앱 크래시 · ANR · Exception 필터)
+    try:
+        proc = subprocess.run(
+            [ADB, "logcat", "-d", "-v", "time", "-t", "300"],
+            capture_output=True, text=True, timeout=10, env=env,
+        )
+        lines = proc.stdout.splitlines()
+        keywords = [package, "AndroidRuntime", "FATAL", "ANR", "Exception", "Error"]
+        filtered = [l for l in lines if any(k in l for k in keywords)]
+        logcat_text = "\n".join(filtered[-150:]) if filtered else "\n".join(lines[-80:])
+
+        log_path = str(BASE_DIR / f"error_{ts}.logcat.txt")
+        Path(log_path).write_text(logcat_text, encoding="utf-8")
+        artifacts["logcat"]         = log_path
+        artifacts["logcat_content"] = logcat_text[-2000:]  # AI 전달용 요약
+        print(f"     📋 logcat: error_{ts}.logcat.txt ({len(filtered)}줄 필터)")
+    except Exception as ex:
+        print(f"     ⚠️  logcat 실패: {ex}")
+
+    return artifacts
 
 
 # ── Element 조작 ──────────────────────────────────────
@@ -210,23 +263,27 @@ def run_scenario(driver, scenario: dict, elements: dict, package: str) -> dict:
             log["ai_invoked"] = True
             print(f"❌ {e}")
 
-            # 스크린샷 저장
-            screenshot_path = None
-            try:
-                ts = datetime.now().strftime("%H%M%S")
-                screenshot_path = str(BASE_DIR / f"error_{ts}.png")
-                driver.save_screenshot(screenshot_path)
-                step_log["screenshot"] = screenshot_path
-                print(f"     📸 {screenshot_path}")
-            except Exception:
-                pass
+            # 아티팩트 수집 (스크린샷 + XML dump + logcat)
+            ts        = datetime.now().strftime("%H%M%S")
+            artifacts = collect_failure_artifacts(driver, package, ts)
+            step_log.update({
+                "screenshot": artifacts.get("screenshot"),
+                "xml_dump":   artifacts.get("xml_dump"),
+                "logcat":     artifacts.get("logcat"),
+            })
 
             # AI 분석 + 자동 복구
-            if screenshot_path:
+            if artifacts.get("screenshot"):
                 try:
                     from ai_helper import analyze_test_failure
                     print(f"     🤖 AI 분석 중...")
-                    ai = analyze_test_failure(screenshot_path, str(e), step.get("desc", ""))
+                    ai = analyze_test_failure(
+                        screenshot_path = artifacts["screenshot"],
+                        error_detail    = str(e),
+                        step_desc       = step.get("desc", ""),
+                        xml_content     = artifacts.get("xml_content", ""),
+                        logcat_content  = artifacts.get("logcat_content", ""),
+                    )
                     step_log["ai_analysis"] = ai
                     print(f"     📋 화면: {ai.get('screen_state', '')}")
                     print(f"     🔍 원인: {ai.get('failure_reason', '')}")
@@ -243,7 +300,6 @@ def run_scenario(driver, scenario: dict, elements: dict, package: str) -> dict:
                         step_log["detail"] = f"AI 복구 성공 — tap({cx},{cy})"
                         log["summary"]["error"] -= 1
                         log["summary"]["pass"] += 1
-                        # 모든 step이 pass면 시나리오 결과도 복구
                         if log["summary"]["error"] == 0 and log["summary"]["fail"] == 0:
                             log["result"] = "PASS"
                         print("✅ AI 복구!")
