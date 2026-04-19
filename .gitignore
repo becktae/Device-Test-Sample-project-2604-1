@@ -7,3 +7,9 @@ screen_dump.xml
 ui_map_broken.json
 ui_map.json
 inspector_dumps/
+
+# 환경변수 / 시크릿
+.env
+.env.*
+*.env
+!.env.example
