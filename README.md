@@ -71,11 +71,18 @@ mcp_server.py (MCP Server)
 ```
 element 탐색 실패
     │
-    ├── 📸 스크린샷 저장
+    ├── 📸 스크린샷 저장          error_HHMMSS.png
+    ├── 🗂  XML dump 저장          error_HHMMSS.xml
+    ├── 📋 ADB logcat 수집         error_HHMMSS.logcat.txt
+    │       └── 필터: 패키지명 · AndroidRuntime · FATAL · ANR · Exception
     │
     ├── 🤖 Claude Vision 호출 (claude-haiku-4-5)
+    │       ├── 스크린샷 (이미지)
+    │       ├── XML element 구조   ← 화면에 무엇이 있는지
+    │       ├── logcat 크래시 로그 ← 앱 내부 에러 원인
+    │       │
     │       ├── 현재 화면 상태 파악
-    │       ├── 실패 원인 분석
+    │       ├── 실패 원인 분석 (logcat·XML 근거 포함)
     │       └── 복구 좌표 제안
     │
     ├── 🎯 AI 제안 좌표로 tap() 재시도
@@ -93,8 +100,9 @@ element 탐색 실패
 | `app_scanner.py` | 앱 이름으로 패키지 탐색 + XML 수집 + ui_map 생성 |
 | `run_app.py` | ui_map 기반 범용 시나리오 실행기 + AI 자동 복구 |
 | `mcp_server.py` | **MCP 서버** — Claude가 직접 호출하는 16개 툴 |
-| `ai_helper.py` | **Claude Vision API** 래퍼 — 스크린샷 분석/좌표 탐색/실패 진단 |
+| `ai_helper.py` | **Claude Vision API** 래퍼 — 스크린샷/XML/logcat 종합 분석 |
 | `.mcp.json` | Claude Code MCP 자동 연결 설정 |
+| `.env.example` | 환경변수 템플릿 (API 키 등) |
 | `server.py` | Flask 웹 서버 (REST API + SSE 실시간 스트림) |
 | `dashboard.html` | 테스트 컨트롤 + 결과 시각화 대시보드 |
 | `ui_maps/` | 앱별 UI 맵 JSON |
@@ -195,6 +203,20 @@ python run_app.py com.sec.android.app.shealth blood_oxygen_tap_check
 
 ---
 
+## 실패 시 수집 아티팩트
+
+테스트 스텝이 실패하면 아래 3가지 파일을 자동 저장합니다.
+
+| 파일 | 내용 |
+|------|------|
+| `error_HHMMSS.png` | 실패 순간 화면 스크린샷 |
+| `error_HHMMSS.xml` | 화면 전체 element 구조 (XML dump) |
+| `error_HHMMSS.logcat.txt` | ADB logcat — 앱 크래시·ANR·Exception 필터 |
+
+> 이 파일들은 `.gitignore`에 등록되어 저장소에 업로드되지 않습니다.
+
+---
+
 ## 결과 형식
 
 ```json
@@ -216,16 +238,20 @@ python run_app.py com.sec.android.app.shealth blood_oxygen_tap_check
 }
 ```
 
-AI 복구 시 step에 `ai_analysis` 필드 추가:
+AI 복구 시 step에 `screenshot` · `xml_dump` · `logcat` · `ai_analysis` 필드 추가:
+
 ```json
 {
   "status": "PASS",
   "detail": "AI 복구 성공 — tap(540, 892)",
+  "screenshot":  "error_190718.png",
+  "xml_dump":    "error_190718.xml",
+  "logcat":      "error_190718.logcat.txt",
   "ai_analysis": {
-    "screen_state": "홈 화면, 혈중 산소 카드 하단에 위치",
-    "failure_reason": "스크롤 위치 변경으로 bounds 불일치",
-    "recovery": "화면 중앙 하단 혈중 산소 카드 탭",
-    "coordinates": [540, 892]
+    "screen_state":    "홈 화면, 혈중 산소 카드 하단에 위치",
+    "failure_reason":  "스크롤 위치 변경으로 bounds 불일치 (logcat 무관)",
+    "recovery":        "화면 중앙 하단 혈중 산소 카드 탭",
+    "coordinates":     [540, 892]
   }
 }
 ```
@@ -234,7 +260,7 @@ AI 복구 시 step에 `ai_analysis` 필드 추가:
 |--------|------|
 | `PASS` | 전체 시나리오 성공 |
 | `FAIL` | 화면 검증 실패 |
-| `ERROR` | element 미탐색 (AI 복구 시도 후 기록) |
+| `ERROR` | element 미탐색 — 아티팩트 3종 저장 + AI 복구 시도 후 기록 |
 
 ---
 
