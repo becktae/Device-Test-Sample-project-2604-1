@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+result_log.json
+screen_dump.xml
+ui_map_broken.json
+ui_map.json
+inspector_dumps/

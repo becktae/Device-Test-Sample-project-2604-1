@@ -1,0 +1,140 @@
+{
+  "app": "samsung_health",
+  "package": "com.sec.android.app.shealth",
+  "updated_at": "2026-04-19",
+  "note": "verified: true = Inspector/자동학습으로 확인된 element",
+  "elements": {
+    "tab_home": {
+      "label": "홈 탭",
+      "text": "홈",
+      "resource_id": "com.sec.android.app.shealth:id/bottom_menu_first",
+      "content_desc": "홈",
+      "bounds": "[20,2036][219,2205]",
+      "xpath": "//*[@resource-id='com.sec.android.app.shealth:id/bottom_menu_first']",
+      "screen": "main",
+      "verified": true,
+      "verified_at": "2026-04-19"
+    },
+    "tab_together": {
+      "label": "투게더 탭",
+      "text": "투게더",
+      "resource_id": "com.sec.android.app.shealth:id/bottom_menu_second",
+      "content_desc": "투게더",
+      "bounds": "[231,2036][430,2205]",
+      "xpath": "//*[@resource-id='com.sec.android.app.shealth:id/bottom_menu_second']",
+      "screen": "main",
+      "verified": true,
+      "verified_at": "2026-04-19"
+    },
+    "tab_discover": {
+      "label": "발견 탭",
+      "text": "발견",
+      "resource_id": "com.sec.android.app.shealth:id/bottom_menu_third",
+      "content_desc": "발견",
+      "bounds": "[442,2036][640,2205]",
+      "xpath": "//*[@resource-id='com.sec.android.app.shealth:id/bottom_menu_third']",
+      "screen": "main",
+      "verified": true,
+      "verified_at": "2026-04-19"
+    },
+    "tab_fitness": {
+      "label": "피트니스 탭",
+      "text": "피트니스",
+      "resource_id": "com.sec.android.app.shealth:id/bottom_menu_fourth",
+      "content_desc": "피트니스",
+      "bounds": "[652,2036][850,2205]",
+      "xpath": "//*[@resource-id='com.sec.android.app.shealth:id/bottom_menu_fourth']",
+      "screen": "main",
+      "verified": true,
+      "verified_at": "2026-04-19"
+    },
+    "tab_mypage": {
+      "label": "내 페이지 탭",
+      "text": "내 페이지",
+      "resource_id": "com.sec.android.app.shealth:id/bottom_menu_fifth",
+      "content_desc": "내 페이지",
+      "bounds": "[862,2036][1060,2205]",
+      "xpath": "//*[@resource-id='com.sec.android.app.shealth:id/bottom_menu_fifth']",
+      "screen": "main",
+      "verified": true,
+      "verified_at": "2026-04-19"
+    },
+    "card_activity": {
+      "label": "일일 활동 카드",
+      "text": "",
+      "resource_id": "",
+      "content_desc": "일일 활동",
+      "bounds": "[28,1592][1052,1958]",
+      "xpath": "//*[contains(@content-desc,'일일 활동')]",
+      "screen": "home",
+      "verified": true,
+      "verified_at": "2026-04-19"
+    },
+    "card_sleep": {
+      "label": "수면 카드",
+      "text": "",
+      "resource_id": "com.sec.android.app.shealth:id/tile_main_layout",
+      "content_desc": "수면",
+      "bounds": "[28,2014][1052,2036]",
+      "xpath": "//*[contains(@content-desc,'수면')]",
+      "screen": "home",
+      "verified": true,
+      "verified_at": "2026-04-19"
+    },
+    "card_blood_oxygen": {
+      "label": "혈중 산소 카드",
+      "text": "",
+      "resource_id": "com.sec.android.app.shealth:id/tile_main_layout",
+      "content_desc": "혈중 산소",
+      "bounds": "[28,1628][1052,1941]",
+      "xpath": "//*[contains(@content-desc,'혈중 산소')]",
+      "screen": "home",
+      "scroll_to": true,
+      "scroll_desc_keyword": "혈중 산소",
+      "verified": true,
+      "verified_at": "2026-04-19"
+    }
+  },
+  "scenarios": [
+    {
+      "id": "menu_navigation_check",
+      "name": "메뉴 진입 체크",
+      "description": "삼성헬스 주요 탭 진입 가능 여부 확인",
+      "steps": [
+        { "action": "launch",        "desc": "삼성헬스 앱 실행" },
+        { "action": "wait",          "ms": 3000, "desc": "초기 로딩 대기" },
+        { "action": "verify_screen", "expected": "home", "desc": "홈 화면 진입 확인" },
+        { "action": "click",         "target": "tab_together",  "desc": "투게더 탭 진입" },
+        { "action": "wait",          "ms": 2000, "desc": "로딩 대기" },
+        { "action": "verify_screen", "expected": "together",    "desc": "투게더 화면 확인" },
+        { "action": "click",         "target": "tab_discover",  "desc": "발견 탭 진입" },
+        { "action": "wait",          "ms": 2000, "desc": "로딩 대기" },
+        { "action": "verify_screen", "expected": "discover",    "desc": "발견 화면 확인" },
+        { "action": "click",         "target": "tab_fitness",   "desc": "피트니스 탭 진입" },
+        { "action": "wait",          "ms": 2000, "desc": "로딩 대기" },
+        { "action": "verify_screen", "expected": "fitness",     "desc": "피트니스 화면 확인" },
+        { "action": "click",         "target": "tab_mypage",    "desc": "내 페이지 탭 진입" },
+        { "action": "wait",          "ms": 2000, "desc": "로딩 대기" },
+        { "action": "verify_screen", "expected": "mypage",      "desc": "내 페이지 화면 확인" },
+        { "action": "click",         "target": "tab_home",      "desc": "홈 탭 복귀" },
+        { "action": "wait",          "ms": 2000, "desc": "로딩 대기" },
+        { "action": "verify_screen", "expected": "home",        "desc": "홈 복귀 확인" }
+      ]
+    }
+  ,
+    {
+      "id": "blood_oxygen_tap_check",
+      "name": "혈중 산소 탭 클릭 확인",
+      "description": "홈 화면 하단 스크롤 → 혈중 산소 카드 진입 가능 여부 확인",
+      "steps": [
+        { "action": "launch",       "desc": "삼성헬스 앱 실행" },
+        { "action": "wait",         "ms": 3000, "desc": "초기 로딩 대기" },
+        { "action": "click",        "target": "tab_home",          "desc": "홈 탭 이동" },
+        { "action": "wait",         "ms": 1500, "desc": "홈 로딩 대기" },
+        { "action": "scroll_click", "target": "card_blood_oxygen", "desc": "하단 스크롤 후 혈중 산소 카드 탭" },
+        { "action": "wait",         "ms": 2000, "desc": "화면 전환 대기" },
+        { "action": "verify_screen","expected": "blood_oxygen",    "desc": "혈중 산소 화면 진입 확인" }
+      ]
+    }
+  ]
+}
